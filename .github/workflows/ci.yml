@@ -1,0 +1,87 @@
+name: Build and Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  python:
+    name: Python checks (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - backend
+          - examples/customer-support/backend
+          - examples/knowledge-assistant/backend
+          - examples/marketing-assets/backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+          python -m pip install mypy
+
+      - name: Syntax check (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: python -m compileall app
+
+      - name: Ruff lint (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: python -m ruff check app
+
+      - name: Ruff format check (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: |
+          python -m ruff format --check app || {
+            echo "::error ::Ruff format check failed. Run 'python -m ruff format app' locally to apply formatting.";
+            exit 1;
+          }
+
+      - name: mypy (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: python -m mypy app --ignore-missing-imports
+
+  node:
+    name: Node build (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - frontend
+          - examples/customer-support/frontend
+          - examples/knowledge-assistant/frontend
+          - examples/marketing-assets/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - name: Install dependencies (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: npm ci
+
+      - name: Build (${{ matrix.project }})
+        working-directory: ${{ matrix.project }}
+        run: npm run build
